@@ -85,7 +85,12 @@ By default, the tool uses Binance's public RPC. You can change it in multiple wa
 
 **Method 1: Edit .env file**
 ```bash
-# Edit .env and uncomment/change the BSC_RPC line:
+# All working RPCs are listed with descriptive names:
+# BSC_RPC_FASTEST=https://bsc-dataseed1.binance.org/     (640ms)
+# BSC_RPC_PUBLICNODE=https://bsc.publicnode.com          (650ms)  
+# BSC_RPC_BINANCE=https://bsc-dataseed.binance.org/      (701ms)
+
+# Change the BSC_RPC line to use any of them:
 BSC_RPC=https://bsc.publicnode.com
 ```
 

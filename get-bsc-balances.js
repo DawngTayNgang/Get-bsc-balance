@@ -7,6 +7,16 @@ require("dotenv").config();
 const BSC_RPC =
   process.env.BSC_RPC || "https://bsc-dataseed.binance.org/";
 
+// Fallback RPC list (ordered by speed)
+const BSC_RPC_FALLBACKS = [
+  "https://bsc-dataseed1.binance.org/",     // 640ms - fastest
+  "https://bsc.publicnode.com",             // 650ms
+  "https://bsc-dataseed.binance.org/",      // 701ms - default
+  "https://bsc-dataseed2.binance.org/",     // 700-800ms
+  "https://bsc-dataseed3.binance.org/",     // 700-800ms
+  "https://bsc-dataseed4.binance.org/",     // 700-800ms
+];
+
 // BSC wallet address to check
 const WALLET_ADDRESS = process.env.WALLET_ADDRESS || "0x779ea720586d1AA4e0867dC221F7e35c18e79cD9";
 
@@ -24,6 +34,56 @@ const multicallAbi = [
   "function tryAggregate(bool requireSuccess, tuple(address target, bytes callData)[] calls) public view returns (tuple(bool success, bytes returnData)[] memory returnData)",
 ];
 
+// Function to test RPC connection with timeout
+async function testRPCConnection(rpcUrl, timeoutMs = 5000) {
+  try {
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // Race between network call and timeout
+    const networkPromise = provider.getNetwork();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout')), timeoutMs)
+    );
+    
+    const startTime = Date.now();
+    await Promise.race([networkPromise, timeoutPromise]);
+    const responseTime = Date.now() - startTime;
+    
+    return { success: true, responseTime, provider };
+  } catch (error) {
+    return { success: false, error: error.message, provider: null };
+  }
+}
+
+// Function to find the best working RPC
+async function getBestRPC() {
+  console.log("🔍 Testing RPC connections...");
+  
+  // First try the configured RPC
+  const primaryTest = await testRPCConnection(BSC_RPC);
+  if (primaryTest.success) {
+    console.log(`✅ Primary RPC working: ${BSC_RPC} (${primaryTest.responseTime}ms)`);
+    return { url: BSC_RPC, provider: primaryTest.provider };
+  }
+  
+  console.log(`❌ Primary RPC failed: ${BSC_RPC} - ${primaryTest.error}`);
+  console.log("🔄 Trying fallback RPCs...");
+  
+  // Try fallback RPCs
+  for (const rpcUrl of BSC_RPC_FALLBACKS) {
+    if (rpcUrl === BSC_RPC) continue; // Skip already tested primary
+    
+    const test = await testRPCConnection(rpcUrl);
+    if (test.success) {
+      console.log(`✅ Fallback RPC working: ${rpcUrl} (${test.responseTime}ms)`);
+      return { url: rpcUrl, provider: test.provider };
+    }
+    console.log(`❌ Failed: ${rpcUrl} - ${test.error}`);
+  }
+  
+  throw new Error("❌ All RPC endpoints failed. Please check your internet connection.");
+}
+
 async function main() {
   if (!ethers.isAddress(WALLET_ADDRESS)) {
     throw new Error(
@@ -31,16 +91,8 @@ async function main() {
     );
   }
 
-  console.log("Connecting to BSC RPC...");
-  const provider = new ethers.JsonRpcProvider(BSC_RPC);
-  
-  // Test connection
-  try {
-    await provider.getNetwork();
-    console.log("✅ Connected to BSC successfully");
-  } catch (error) {
-    throw new Error(`❌ Failed to connect to BSC RPC: ${error.message}`);
-  }
+  // Auto-select best working RPC
+  const { url: workingRPC, provider } = await getBestRPC();
 
   const multicall = new ethers.Contract(
     MULTICALL_ADDRESS,
