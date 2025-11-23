@@ -38,12 +38,21 @@ This tool connects to the BNB Smart Chain and:
 
 3. **Configure your wallet address** (choose one method):
 
-   **Method 1: Environment Variable (Recommended)**
+   **Method 1: Using .env file (Recommended)**
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # Edit .env file with your wallet address
+   nano .env
+   ```
+   
+   **Method 2: Environment Variable**
    ```bash
    export WALLET_ADDRESS=0xYourWalletAddressHere
    ```
 
-   **Method 2: Edit the code directly**
+   **Method 3: Edit the code directly**
    Open `get-bsc-balances.js` and modify:
    ```js
    const WALLET_ADDRESS = "0xYourWalletAddressHere";
@@ -72,11 +81,26 @@ BNB: 0.125
 
 ### Custom RPC Endpoint
 
-By default, the tool uses Binance's public RPC. You can use your own:
+By default, the tool uses Binance's public RPC. You can change it in multiple ways:
 
+**Method 1: Edit .env file**
+```bash
+# Edit .env and uncomment/change the BSC_RPC line:
+BSC_RPC=https://bsc.publicnode.com
+```
+
+**Method 2: Environment Variable**
 ```bash
 export BSC_RPC=https://your-custom-bsc-rpc-endpoint
 ```
+
+**Available working RPC endpoints:**
+- `https://bsc-dataseed1.binance.org/` (fastest - 640ms)
+- `https://bsc.publicnode.com` (650ms)
+- `https://bsc-dataseed.binance.org/` (701ms - default)
+- `https://bsc-dataseed2.binance.org/`
+- `https://bsc-dataseed3.binance.org/`
+- `https://bsc-dataseed4.binance.org/`
 
 ### Token List
 

@@ -1,6 +1,7 @@
 const { ethers } = require("ethers");
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config();
 
 // ================== CONFIG ==================
 const BSC_RPC =
@@ -30,7 +31,17 @@ async function main() {
     );
   }
 
+  console.log("Connecting to BSC RPC...");
   const provider = new ethers.JsonRpcProvider(BSC_RPC);
+  
+  // Test connection
+  try {
+    await provider.getNetwork();
+    console.log("✅ Connected to BSC successfully");
+  } catch (error) {
+    throw new Error(`❌ Failed to connect to BSC RPC: ${error.message}`);
+  }
+
   const multicall = new ethers.Contract(
     MULTICALL_ADDRESS,
     multicallAbi,
@@ -38,7 +49,14 @@ async function main() {
   );
 
   const tokensPath = path.join(__dirname, "verified-tokens.json");
-  const tokens = JSON.parse(fs.readFileSync(tokensPath, "utf8"));
+  let tokens;
+  
+  try {
+    tokens = JSON.parse(fs.readFileSync(tokensPath, "utf8"));
+    console.log(`📋 Loaded ${tokens.length} tokens from verified-tokens.json`);
+  } catch (error) {
+    throw new Error(`❌ Failed to read token list: ${error.message}`);
+  }
 
   const iface = new ethers.Interface(erc20Abi);
 
@@ -56,7 +74,13 @@ async function main() {
 
   console.log(`Calling Multicall for ${calls.length} tokens...`);
 
-  const results = await multicall.tryAggregate(false, calls);
+  let results;
+  try {
+    results = await multicall.tryAggregate(false, calls);
+    console.log("✅ Multicall completed successfully");
+  } catch (error) {
+    throw new Error(`❌ Multicall failed: ${error.message}`);
+  }
 
   const nonZero = [];
 
@@ -66,18 +90,24 @@ async function main() {
 
     if (!success || !returnData || returnData === "0x") continue;
 
-    const [balanceBN] = iface.decodeFunctionResult("balanceOf", returnData);
+    try {
+      const [balanceBN] = iface.decodeFunctionResult("balanceOf", returnData);
 
-    const decimals = token.decimals ?? 18;
-    const human = Number(ethers.formatUnits(balanceBN, decimals));
+      const decimals = token.decimals ?? 18;
+      const human = Number(ethers.formatUnits(balanceBN, decimals));
 
-    if (human > 0) {
-      nonZero.push({
-        symbol: token.symbol,
-        address: token.address,
-        decimals,
-        balance: human,
-      });
+      if (human > 0) {
+        nonZero.push({
+          symbol: token.symbol,
+          name: token.name,
+          address: token.address,
+          decimals,
+          balance: human,
+        });
+      }
+    } catch (error) {
+      console.warn(`⚠️  Failed to decode balance for ${token.symbol}: ${error.message}`);
+      continue;
     }
   }
 
